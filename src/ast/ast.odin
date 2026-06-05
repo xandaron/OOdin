@@ -1,5 +1,5 @@
 /*
-	This source file has been edited to support OOdin.
+	This source file has been edited to support OdinPP.
 */
 
 // Abstract Syntax Tree for the `Odin` parser packages.
@@ -155,11 +155,17 @@ Proc_Lit :: struct {
 	where_clauses: []^Expr,
 }
 
+Proc_Expr :: union {
+	^Proc_Lit,
+	^Proc_Group,
+	^Proc_Type,
+}
+
 Proc_List :: struct {
 	using node: Node,
 	open:       tokenizer.Pos,
 	names:      []^Expr,
-	list:       []^Expr,
+	list:       []^Proc_Expr,
 	close:      tokenizer.Pos,
 }
 
@@ -985,6 +991,7 @@ Any_Node :: union {
 	^Field_List,
 	^Proc_List,
 	^Bit_Field_Field,
+	^Proc_Expr,
 }
 
 Any_Expr :: union {

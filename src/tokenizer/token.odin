@@ -1,5 +1,5 @@
 /*
-	This source file has been edited to support OOdin.
+	This source file has been edited to support OdinPP.
 */
 
 package tokenizer

@@ -1,11 +1,14 @@
 /*
-	This source file has been edited to support OOdin.
+	This source file has been edited to support OdinPP.
 */
 
 // The `Odin` file parser to be used in tooling.
 package parser
 
 import "core:fmt"
+
+import ImRefl "../../../Odin-ImReflect/imreflect"
+import ImReflBs "../../../Odin-ImReflect/imreflect/bootstrap"
 
 import "../ast"
 import "../tokenizer"
@@ -215,7 +218,87 @@ parse_file :: proc(p: ^Parser, file: ^ast.File) -> bool {
 		stmt := parse_stmt(p)
 		if stmt != nil {
 			if _, ok := stmt.derived.(^ast.Empty_Stmt); !ok {
+				if v, ok := stmt.derived.(^ast.Value_Decl); ok {
+					if c, ok := v.values[0].derived.(^ast.Class_Type); ok {
+						for i in 0 ..< len(c.methods.list) {
+							if _, ok := c.methods.list[i].(^ast.Proc_Type); ok {
+								continue
+							}
+
+							add_proc_decl :: proc(decls: ^[dynamic]^ast.Stmt, expr: $T, name: ^ast.Expr) {
+								method_stmt := ast.new(ast.Value_Decl, expr.pos, expr)
+								method_stmt.names = make([]^ast.Expr, 1)
+								method_stmt.names[0] = name
+								method_stmt.values = make([]^ast.Expr, 1)
+								method_stmt.values[0] = expr
+								append(decls, method_stmt)
+							}
+
+							#partial switch &m in c.methods.list[i] {
+							case ^ast.Proc_Lit:
+								name := fmt.aprintf("%s___%s", v.names[0].derived.(^ast.Ident).name, c.methods.names[i].derived.(^ast.Ident).name)
+								c.methods.names[i].derived.(^ast.Ident).name = name
+
+								params := make([]^ast.Field, len(m.type.params.list) + 1)
+								for p, i in m.type.params.list {
+									params[i + 1] = p
+								}
+								params[0] = ast.new(ast.Field, m.pos, m.end)
+								this := params[0]
+								
+								this.names = make([]^ast.Expr, 1)
+								this.names[0] = ast.new(ast.Ident, m.pos, m.end)
+								this.names[0].derived.(^ast.Ident).name = "this"
+
+								this.type = ast.new(ast.Ident, m.pos, m.end)
+								this.type.derived.(^ast.Ident).name = fmt.aprintf("^%s", v.names[0].derived.(^ast.Ident).name)
+
+								m.type.params.list = params
+								add_proc_decl(&p.file.decls, m, c.methods.names[i])
+							case ^ast.Proc_Group:
+								add_proc_decl(&p.file.decls, m, c.methods.names[i])
+							case:
+								panic("Unreachable")
+							}
+						}
+
+						class := ast.new(ast.Struct_Type, c.pos, c.end)
+						class.tok_pos = c.tok_pos
+						class.poly_params = c.poly_params
+						class.align = c.align
+						class.min_field_align = c.min_field_align
+						class.max_field_align = c.max_field_align
+						class.where_token = c.where_token
+						class.where_clauses = c.where_clauses
+						class.is_packed = c.is_packed
+						class.is_no_copy = c.is_no_copy
+						class.is_simple = c.is_simple
+						class.fields = c.fields
+						class.name_count = c.name_count
+
+						fields: [dynamic]^ast.Field
+						for inherit in c.inherits {
+							field := ast.new(ast.Field, inherit.pos, inherit.end)
+							field.type = inherit
+							field.flags = {.Using}
+							field.names = make([]^ast.Expr, 1)
+							field.names[0] = inherit.derived.(^ast.Ident)
+							inherit.derived.(^ast.Ident).name = fmt.aprintf("base___%s", inherit.derived.(^ast.Ident).name)
+							append(&fields, field)
+						}
+						append(&fields, ..c.fields.list)
+						class.fields = c.fields
+						class.fields.list = fields[:]
+
+						free(c)
+						v.values[0] = class
+
+						class.expr_base.derived = class
+						class.derived_expr = class
+					}
+				}
 				append(&p.file.decls, stmt)
+
 				if es, es_ok := stmt.derived.(^ast.Expr_Stmt); es_ok && es.expr != nil {
 					if _, pl_ok := es.expr.derived.(^ast.Proc_Lit); pl_ok {
 						error(p, stmt.pos, "procedure literal evaluated but not used")
@@ -1427,6 +1510,7 @@ parse_stmt :: proc(p: ^Parser) -> ^ast.Stmt {
 	     .String,
 	     .Open_Paren,
 	     .Pointer,
+	     .This,
 	     .Asm, // Inline assembly
 	     // Unary Expressions
 	     .Add,
@@ -1439,8 +1523,6 @@ parse_stmt :: proc(p: ^Parser) -> ^ast.Stmt {
 		s := parse_simple_stmt(p, {Stmt_Allow_Flag.Label})
 		expect_semicolon(p, s)
 		return s
-
-
 	case .Foreign:
 		return parse_foreign_decl(p)
 	case .Import:
@@ -1453,7 +1535,6 @@ parse_stmt :: proc(p: ^Parser) -> ^ast.Stmt {
 		return parse_for_stmt(p)
 	case .Switch:
 		return parse_switch_stmt(p)
-
 	case .Defer:
 		tok := advance_token(p)
 		stmt := parse_stmt(p)
@@ -1469,7 +1550,6 @@ parse_stmt :: proc(p: ^Parser) -> ^ast.Stmt {
 		ds := ast.new(ast.Defer_Stmt, tok.pos, stmt)
 		ds.stmt = stmt
 		return ds
-
 	case .Return:
 		tok := advance_token(p)
 
@@ -1496,7 +1576,6 @@ parse_stmt :: proc(p: ^Parser) -> ^ast.Stmt {
 		rs.results = results[:]
 		expect_semicolon(p, rs)
 		return rs
-
 	case .Break, .Continue, .Fallthrough:
 		tok := advance_token(p)
 		label: ^ast.Ident
@@ -1508,7 +1587,6 @@ parse_stmt :: proc(p: ^Parser) -> ^ast.Stmt {
 		s.label = label
 		expect_semicolon(p, s)
 		return s
-
 	case .Using:
 		docs := p.lead_comment
 		tok := expect_token(p, .Using)
@@ -1543,12 +1621,10 @@ parse_stmt :: proc(p: ^Parser) -> ^ast.Stmt {
 
 		error(p, tok.pos, "illegal use of 'using' statement")
 		return ast.new(ast.Bad_Stmt, tok.pos, end_pos(p.prev_tok))
-
 	case .At:
 		docs := p.lead_comment
 		tok := advance_token(p)
 		return parse_attribute(p, tok, .Open_Paren, .Close_Paren, docs)
-
 	case .Hash:
 		tok := expect_token(p, .Hash)
 		tag := expect_token(p, .Ident)
@@ -1632,13 +1708,11 @@ parse_stmt :: proc(p: ^Parser) -> ^ast.Stmt {
 		}
 	case .Open_Brace:
 		return parse_block_stmt(p, false)
-
 	case .Semicolon:
 		tok := advance_token(p)
 		s := ast.new(ast.Empty_Stmt, tok.pos, end_pos(tok))
 		return s
 	}
-
 
 	#partial switch p.curr_tok.kind {
 	case .Else:
@@ -1659,7 +1733,6 @@ parse_stmt :: proc(p: ^Parser) -> ^ast.Stmt {
 			return ast.new(ast.Bad_Stmt, token.pos, end_pos(p.curr_tok))
 		}
 	}
-
 
 	tok := advance_token(p)
 	error(p, tok.pos, "expected a statement, got %s", tokenizer.token_to_string(tok))
@@ -2242,7 +2315,7 @@ parse_class_fields :: proc(
 		p: ^Parser,
 		seen_ellipsis: ^bool,
 		fields: ^[dynamic]^ast.Field,
-		procs: ^[dynamic]^ast.Expr,
+		procs: ^[dynamic]^ast.Proc_Expr,
 		proc_names: ^[dynamic]^ast.Expr,
 		docs: ^ast.Comment_Group,
 		names: []^ast.Expr,
@@ -2356,7 +2429,7 @@ parse_class_fields :: proc(
 	docs := p.lead_comment
 
 	fields: [dynamic]^ast.Field
-	procs: [dynamic]^ast.Expr
+	procs: [dynamic]^ast.Proc_Expr
 	proc_names: [dynamic]^ast.Expr
 
 	list: [dynamic]Expr_And_Flags
@@ -2422,7 +2495,17 @@ parse_class_fields :: proc(
 			set_flags = list[0].flags
 		}
 		total_name_count += len(names)
-		handle_field(p, &seen_ellipsis, &fields, &procs, &proc_names, docs, names, allowed_flags, set_flags)
+		handle_field(
+			p,
+			&seen_ellipsis,
+			&fields,
+			&procs,
+			&proc_names,
+			docs,
+			names,
+			allowed_flags,
+			set_flags,
+		)
 
 		for p.curr_tok.kind != follow && p.curr_tok.kind != .EOF {
 			docs = p.lead_comment
@@ -2569,7 +2652,8 @@ parse_proc_type :: proc(p: ^Parser, tok: tokenizer.Token) -> ^ast.Proc_Type {
 	return pt
 }
 
-parse_proc_lit :: proc(p: ^Parser) -> ^ast.Expr {
+parse_proc_lit :: proc(p: ^Parser) -> ^ast.Proc_Expr {
+	ret := new(ast.Proc_Expr)
 	tok := expect_token(p, .Proc)
 
 	if p.curr_tok.kind == .Open_Brace {
@@ -2595,7 +2679,8 @@ parse_proc_lit :: proc(p: ^Parser) -> ^ast.Expr {
 		pg.open = open.pos
 		pg.args = args[:]
 		pg.close = close.pos
-		return pg
+		ret^ = pg
+		return ret
 	}
 
 	type := parse_proc_type(p, tok)
@@ -2619,7 +2704,8 @@ parse_proc_lit :: proc(p: ^Parser) -> ^ast.Expr {
 		if where_token.kind != .Invalid {
 			error(p, where_token.pos, "'where' clauses are not allowed on procedure types")
 		}
-		return type
+		ret^ = type
+		return ret
 	}
 	body: ^ast.Stmt
 
@@ -2648,7 +2734,8 @@ parse_proc_lit :: proc(p: ^Parser) -> ^ast.Expr {
 			error(p, body.pos, "the body of a 'do' must be on the same line as the signature")
 		}
 	} else {
-		return type
+		ret^ = type
+		return ret
 	}
 
 	pl := ast.new(ast.Proc_Lit, tok.pos, end_pos(p.prev_tok))
@@ -2657,7 +2744,8 @@ parse_proc_lit :: proc(p: ^Parser) -> ^ast.Expr {
 	pl.tags = tags
 	pl.where_token = where_token
 	pl.where_clauses = where_clauses
-	return pl
+	ret^ = pl
+	return ret
 }
 
 parse_inlining_or_tailing_operand :: proc(
@@ -2740,6 +2828,12 @@ parse_operand :: proc(p: ^Parser, lhs: bool) -> ^ast.Expr {
 		ctx := ast.new(ast.Implicit, tok.pos, end_pos(tok))
 		ctx.tok = tok
 		return ctx
+
+	case .This:
+		tok := expect_token(p, .This)
+		this := ast.new(ast.Basic_Lit, tok.pos, end_pos(tok))
+		this.tok = tok
+		return this
 
 	case .Integer, .Float, .Imag, .Rune, .String:
 		tok := advance_token(p)
@@ -2950,7 +3044,14 @@ parse_operand :: proc(p: ^Parser, lhs: bool) -> ^ast.Expr {
 		return parse_inlining_or_tailing_operand(p, lhs, tok)
 
 	case .Proc:
-		return parse_proc_lit(p)
+		switch ret in parse_proc_lit(p) {
+		case ^ast.Proc_Group:
+			return ret
+		case ^ast.Proc_Lit:
+			return ret
+		case ^ast.Proc_Type:
+			return ret
+		}
 
 	case .Dollar:
 		tok := advance_token(p)
@@ -3998,7 +4099,6 @@ parse_atom_expr :: proc(p: ^Parser, value: ^ast.Expr, lhs: bool) -> (operand: ^a
 	}
 
 	return operand
-
 }
 
 parse_expr :: proc(p: ^Parser, lhs: bool) -> ^ast.Expr {
@@ -4204,7 +4304,6 @@ parse_simple_stmt :: proc(p: ^Parser, flags: Stmt_Allow_Flags) -> ^ast.Stmt {
 		stmt.op = op
 		stmt.rhs = rhs
 		return stmt
-
 	case op.kind == .In:
 		if .In in flags {
 			allow_token(p, .In)

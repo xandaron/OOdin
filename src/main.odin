@@ -1,4 +1,4 @@
-package OOdin
+package OdinPP
 
 import "core:fmt"
 import "core:os"
@@ -8,6 +8,9 @@ import "ast"
 import "parser"
 import "printer"
 import "tokenizer"
+
+import ImRefl "../../Odin-ImReflect/imreflect"
+import ImReflBs "../../Odin-ImReflect/imreflect/bootstrap"
 
 main :: proc() {
 	inputDir, outputDir: string
@@ -28,6 +31,11 @@ main :: proc() {
 			return
 		}
 	}
+
+	if !ImReflBs.init(500, 1000) {
+		fmt.println("Error")
+	}
+	defer ImReflBs.shutdown()
 
 	tokenizer.custom_keyword_tokens = {"class", "this"}
 	pkg, ok := parser.collect_package(inputDir)

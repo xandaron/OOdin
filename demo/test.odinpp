@@ -1,4 +1,4 @@
-package OOdin
+package OdinPP
 
 Test :: class {
 	a: i32,
@@ -6,9 +6,9 @@ Test :: class {
 	c: f32,
 
 	init :: proc(b: b32) {
-		// this.a = 10
-		// this.b = b
-		// this.c = 1.0
+		this.a = 10
+		this.b = b
+		this.c = 1.0
 	},
 
 	uninit :: proc() {
@@ -16,18 +16,18 @@ Test :: class {
 	},
 
 	sub_a :: proc(x: i32) -> i32 {
-		// return x - this.a
+		return x - this.a
 	},
 }
 
 Class2 :: class {}
 
 new_class :: class #inherits(Test, Class2) {
-	// init :: proc() {
-	// 	// Inherited constructors must be called explicitly.
-	// 	Test.init(3.5)
-	// 	Class2.init()
-	// },
+	init :: proc() {
+		// Inherited constructors must be called explicitly.
+		Test.init(3.5)
+		Class2.init()
+	},
 }
 
 // abs_class :: class #abstract {
@@ -42,15 +42,15 @@ new_class :: class #inherits(Test, Class2) {
 // 	abs_method :: proc(),
 // }
 
-// my_class :: class #inherits(abs_class) {
-// 	init :: proc() {
-// 		abs_class.init(3.0, 20)
-// 	},
+my_class :: class #inherits(abs_class) {
+	init :: proc() {
+		abs_class.init(3.0, 20)
+	},
 
-// 	abs_method :: proc() {
-// 		return this.f1 + this.f2
-// 	},
-// }
+	abs_method :: proc() {
+		return this.f1 + this.f2
+	},
+}
 
 // abs_2_class :: class #abstract #inherits(abs_class) {}
 
@@ -64,17 +64,17 @@ main :: proc() {
 	t1: Test
 	// t1.init(false)
 	// defer t1.uninit()
-	
+
 	// t1.sub_a(10)
-	
+
 	t2: ^Test = new(Test)
 	defer free(t2)
 	// t2.init(false)
 	// defer t2.uninit()
-	
+
 	t3: new_class
 	t3.a = 2
 	// t3.sub_a(5)
-	
+
 	parapoly: parapoly_class(i32)
 }

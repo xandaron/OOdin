@@ -1,15 +1,15 @@
 /*
-	Object Oriented Odin (OOdin);
-	OOdin is a super set of the Odin programming language.
+	Odin Plus Plus (Odin++);
+	Odin++ is a super set of the Odin programming language.
 	The goal of this project is to create a transpiler that takes
-	an OOdin file and converts it into plain odin.
+	an Odin++ file and converts it into plain odin.
 
-	In this file I will propose syntax for OOdin and how it
+	In this file I will propose syntax for Odin++ and how it
 	should be converted into Odin.
 */
-package OOdin
+package OdinPP
 
-// OOdin
+// OdinPP
 // We use the new keyword type 'class' using the established Odin type decleration structure.
 // A class is essentially just a struct that has functions that are scoped to the struct.
 Test :: class {
@@ -67,7 +67,7 @@ Test___sub_a :: proc(this: ^Test, x: i32) -> i32 {
 // Class instantiation. Unlike many OOP languages the new keyword isn't necessary
 // and should only be used when you want to allocate a pointer. (refer to vanilla odin's new keyword)
 
-// OOdin
+// OdinPP
 t1: Test
 t1.init(false)
 defer t1.uninit()
@@ -90,7 +90,7 @@ t2: ^Test = new(Test) // You are responsable for calling free on the pointer.
 Test___init(&t2)
 defer Test___uninit(&t2)
 
-// oodin
+// OdinPP
 // Classes can inherit from other classes using the '#inherit' tag.
 // A class can inherit from any number of classes, abstract or not.
 // When inheriting from multiple classes no class can share a field or method name.
@@ -128,7 +128,7 @@ t3.a = 2
 
 Test___sub_a(&t3.base___Test, 5)
 
-// OOdin
+// OdinPP
 // An abstract class is a class which acts like a template that can't be instantiated.
 // The '#abstract' tag is used to mark a class as abstract
 abs_class :: class #abstract {
@@ -190,7 +190,7 @@ abs_2_class :: struct {
 	using base___abs_class: abs_class,
 }
 
-// OOdin
+// OdinPP
 // Classes support parametric polymorphism (parapoly).
 parapoly_class :: class($T: typeid) {
 	field1: T,
@@ -214,7 +214,7 @@ parapoly: parapoly_class(i32)
 par_inherit: para_inheritor(i32)
 
 /*
-	For now this concludes the intended syntax and features of OOdin
+	For now this concludes the intended syntax and features of OdinPP
 	however there is room to add more advanced OOP concepts.
 
 	I intentially haven't added interfaces as I don't see what

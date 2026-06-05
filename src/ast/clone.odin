@@ -1,5 +1,5 @@
 /*
-	This source file has been edited to support OOdin.
+	This source file has been edited to support OdinPP.
 */
 
 package ast
@@ -40,6 +40,7 @@ new :: proc {
 
 clone :: proc {
 	clone_node,
+	clone_derived,
 	clone_expr,
 	clone_stmt,
 	clone_decl,
@@ -53,7 +54,13 @@ clone_array :: proc(array: $A/[]^$T) -> A {
 	}
 	res := make(A, len(array))
 	for elem, i in array {
-		res[i] = (^T)(clone(elem))
+		when T == Proc_Expr {
+			n: Any_Node = elem
+			clone(&n)
+			res[i] = elem
+		} else {
+			res[i] = (^T)(clone(elem))
+		}
 	}
 	return res
 }
@@ -72,12 +79,15 @@ clone_dynamic_array :: proc(array: $A/[dynamic]^$T) -> A {
 clone_expr :: proc(node: ^Expr) -> ^Expr {
 	return cast(^Expr)clone_node(node)
 }
+
 clone_stmt :: proc(node: ^Stmt) -> ^Stmt {
 	return cast(^Stmt)clone_node(node)
 }
+
 clone_decl :: proc(node: ^Decl) -> ^Decl {
 	return cast(^Decl)clone_node(node)
 }
+
 clone_node :: proc(node: ^Node) -> ^Node {
 	if node == nil {
 		return nil
@@ -122,8 +132,14 @@ clone_node :: proc(node: ^Node) -> ^Node {
 		reflect.set_union_value(ds, res_ptr_any)
 	}
 
-	if res.derived != nil {
-		switch r in res.derived {
+	clone(&res.derived)
+
+	return res
+}
+
+clone_derived :: proc(node: ^Any_Node) {
+	if node != nil {
+		switch &r in node {
 		case ^Package, ^File:
 		case ^Bad_Expr:
 		case ^Ident:
@@ -132,16 +148,19 @@ clone_node :: proc(node: ^Node) -> ^Node {
 		case ^Basic_Lit:
 		case ^Basic_Directive:
 		case ^Comment_Group:
-
+		case ^Bad_Stmt:
+		case ^Empty_Stmt:
 		case ^Ellipsis:
 			r.expr = clone(r.expr)
 		case ^Proc_Lit:
 			r.type = auto_cast clone(r.type)
 			r.body = clone(r.body)
+		case ^Proc_Expr:
+			n: Any_Node = r
+			clone_derived(&n)
 		case ^Comp_Lit:
 			r.type = clone(r.type)
 			r.elems = clone(r.elems)
-
 		case ^Tag_Expr:
 			r.expr = clone(r.expr)
 		case ^Unary_Expr:
@@ -207,16 +226,10 @@ clone_node :: proc(node: ^Node) -> ^Node {
 			r.return_type = clone(r.return_type)
 			r.constraints_string = clone(r.constraints_string)
 			r.asm_string = clone(r.asm_string)
-
-		case ^Bad_Stmt:
-		// empty
-		case ^Empty_Stmt:
-		// empty
 		case ^Expr_Stmt:
 			r.expr = clone(r.expr)
 		case ^Tag_Stmt:
 			r.stmt = clone(r.stmt)
-
 		case ^Assign_Stmt:
 			r.lhs = clone(r.lhs)
 			r.rhs = clone(r.rhs)
@@ -373,6 +386,4 @@ clone_node :: proc(node: ^Node) -> ^Node {
 			fmt.panicf("Unhandled node kind: %v", r)
 		}
 	}
-
-	return res
 }

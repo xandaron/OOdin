@@ -1,5 +1,5 @@
 /*
-	This source file has been edited to support OOdin.
+	This source file has been edited to support OdinPP.
 */
 
 package parser
@@ -21,7 +21,7 @@ collect_package :: proc(path: string) -> (pkg: ^ast.Package, success: bool) {
 		return
 	}
 
-	path_pattern := fmt.tprintf("%s/*.oodin", pkg_path)
+	path_pattern := fmt.tprintf("%s/*.odinpp", pkg_path)
 	matches, err := filepath.glob(path_pattern)
 	defer delete(matches)
 
